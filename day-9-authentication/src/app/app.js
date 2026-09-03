@@ -1,5 +1,10 @@
 import express from "express";
 import jwt from "jsonwebtoken";
+import userModel from "../models/user.model.js";
+import { authenticate } from "../middleware/auth.middleware.js";
+import dotenv from "dotenv"
+import bcryptjs from bcryptjs
+dotenv.config()
 
 const app = express();
 
@@ -11,26 +16,71 @@ app.get("/api", (req, res) => {
   });
 });
 
-app.post("/api/auth/register", (req, res) => {
+app.post("/api/auth/register", authenticate, async (req, res) => {
   const { email, name, password } = req.body;
 
-    const token = jwt.sign(
-        {
-        email, name
-    },
-    "0b79c974b00e9130b915564f0a2bfeb56bc06d46846abe796b6695db813fac5ae977f2a544d6b90c1188fccd7b6c8719cc738be89757168cec48da60c3d6128a"
-)
+  const user = await userModel.create({
+    email,
+    name,
+    password: await bcrypt.hash(password, 10),
+  });
 
-    res.status(201).json({
-        message:"User created successfully",
-        data:{
-            user:{
-                email, name
-            },
-            token
-        }
+  const token = jwt.sign(
+    {
+      id: user._id,
+    },
+    process.env.JWT_SECRET,
+  );
+
+  res.status(201).json({
+    message: "User created successfully",
+    data: {
+      user: {
+        email,
+        name,
+        id: user._id,
+      },
+      token,
+    },
+  });
+});
+
+app.get("/api/auth/me", async (req, res) => {
+  res.status(200).json({
+    data:{
+        user: req.user
+    }
+  })
+});
+
+app.post("/api/auth/login", async (req, res) => {
+    const { email, password } = req.body
+
+    const user = await userModel.findOne({
+        email
     })
 
-});
+    const isValidPassword = bcrypt.compare(password, user.password)
+
+    if(!isValidPassword){
+        return res.status(401).json({
+            message:"Invalid eamil or password"
+        })
+    }
+
+    const token = jwt.sign({
+        id:user._id
+    }, process.env.JWT_SECRET)
+
+    res.status(200).json({
+        message:"user loggedin successfully",
+        data:{
+            email:user.email,
+            name:user.name
+        }
+    },
+    token
+)
+})
 
 export default app;
