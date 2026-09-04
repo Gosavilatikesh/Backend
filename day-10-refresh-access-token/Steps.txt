@@ -1,0 +1,2 @@
+server => server.js, app.js
+connect to database => db.js MONGO_URI
